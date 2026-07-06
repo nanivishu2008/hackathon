@@ -47,12 +47,16 @@ export const sendMessage = async (req, res, next) => {
 
     // Check if escalation is needed (low confidence)
     if (confidence < 0.6) {
-      await createEscalationTicket(
-        chat._id,
-        userId,
-        `Low confidence response to: ${content.substring(0, 50)}...`,
-        `AI generated response with low confidence (${(confidence * 100).toFixed(0)}%).`
-      );
+      try {
+        await createEscalationTicket(
+          chat._id,
+          userId,
+          `Low confidence response to: ${content.substring(0, 50)}...`,
+          `AI generated response with low confidence (${(confidence * 100).toFixed(0)}%).`
+        );
+      } catch (escalationErr) {
+        console.error('Error creating escalation ticket:', escalationErr);
+      }
     }
 
     res.json({

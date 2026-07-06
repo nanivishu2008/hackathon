@@ -137,33 +137,51 @@ export const generateAIResponse = async (userMessage, chatHistory = [], knowledg
   try {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey || apiKey === 'your_gemini_api_key_here' || apiKey.startsWith('your_')) {
-      console.warn('⚠️ Warning: Using mock AI response because GEMINI_API_KEY is not configured.');
       return await getMockResponse(userMessage, knowledgeContext);
     }
 
-    // Using gemini-1.5-flash as the modern model name
     const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-    const conversationHistory = chatHistory.map((msg) => ({
-      role: msg.sender === 'user' ? 'user' : 'model',
-      parts: [{ text: msg.content }],
-    }));
+    // Build conversation history for Gemini, excluding the current user message
+    // (since we send it via sendMessage) and ensuring proper role alternation
+    let conversationHistory = chatHistory
+      .filter((msg) => msg.content && msg.content.trim().length > 0)
+      .map((msg) => ({
+        role: msg.sender === 'user' ? 'user' : 'model',
+        parts: [{ text: msg.content }],
+      }));
+
+    // Remove trailing user message to avoid consecutive user turns
+    if (conversationHistory.length > 0 && conversationHistory[conversationHistory.length - 1].role === 'user') {
+      conversationHistory = conversationHistory.slice(0, -1);
+    }
+
+    // Ensure history starts with 'user' role (Gemini requirement)
+    while (conversationHistory.length > 0 && conversationHistory[0].role !== 'user') {
+      conversationHistory = conversationHistory.slice(1);
+    }
+
+    // Ensure alternating roles (remove consecutive same-role entries)
+    const cleanHistory = [];
+    for (const entry of conversationHistory) {
+      if (cleanHistory.length === 0 || cleanHistory[cleanHistory.length - 1].role !== entry.role) {
+        cleanHistory.push(entry);
+      }
+    }
 
     const systemPrompt = knowledgeContext
       ? `You are a professional customer support assistant. Use the following knowledge base to answer questions:\n\n${knowledgeContext}\n\nBe concise, helpful, and professional. If you don't know the answer or if the context doesn't contain it, be honest about it.`
       : "You are a professional customer support assistant. Provide accurate, concise, and helpful responses. If you don't know the answer, be honest about it.";
 
     const chat = model.startChat({
-      history: conversationHistory.slice(-10),
+      history: cleanHistory.slice(-10),
     });
 
-    // Fix: Send the prompt with system instruction and context to the model instead of just userMessage
     const prompt = `${systemPrompt}\n\nCustomer: ${userMessage}`;
     const result = await chat.sendMessage(prompt);
     const response = await result.response;
     const text = response.text();
 
-    // Calculate confidence score dynamically
     const confidence = calculateConfidence(userMessage, text, knowledgeContext);
 
     return {
@@ -173,13 +191,8 @@ export const generateAIResponse = async (userMessage, chatHistory = [], knowledg
       requiresEscalation: confidence < 0.6,
     };
   } catch (error) {
-    // If the API call fails due to invalid key or auth, fallback to mock response to prevent crash!
-    if (error.message && (error.message.includes('API key') || error.message.includes('API_KEY_INVALID'))) {
-      console.warn('⚠️ Warning: Gemini API Call failed due to invalid key. Falling back to mock response.');
-      return await getMockResponse(userMessage, knowledgeContext);
-    }
-    console.error('Error generating AI response:', error);
-    throw { status: 500, message: 'Failed to generate response' };
+    console.warn('⚠️ Warning: AI Service failed. Falling back to mock response.', error.message);
+    return await getMockResponse(userMessage, knowledgeContext);
   }
 };
 
