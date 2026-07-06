@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { analyticsAPI } from '../services/api';
-import { FiBarChart3, FiAlertCircle } from 'react-icons/fi';
+import { FiAlertCircle } from 'react-icons/fi';
 
 const AnalyticsPage = () => {
   const [analytics, setAnalytics] = useState(null);
