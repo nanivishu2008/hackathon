@@ -1,7 +1,7 @@
 import React, { useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
-import { FiLogOut, FiMenu, FiX } from 'react-icons/fi';
+import { FiLogOut} from 'react-icons/fi';
 
 const Navbar = ({ onMenuClick }) => {
   const { user, logout } = useContext(AuthContext);
